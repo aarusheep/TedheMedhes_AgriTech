@@ -1,27 +1,16 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 
-// Initialize Razorpay (with proper error handling)
-let razorpay;
-if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-  razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-  });
-} else {
-  console.warn('⚠️  Razorpay credentials not found. Payment features will be disabled.');
-}
+// Initialize Razorpay
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 
 // @desc    Create a payment order
 // @route   POST /api/payments/create-order
 // @access  Private
 const createOrder = async (req, res) => {
-  if (!razorpay) {
-    return res.status(503).json({ 
-      message: 'Payment service not configured. Please contact administrator.' 
-    });
-  }
-
   const { amount, currency = 'INR', receipt } = req.body;
 
   try {
