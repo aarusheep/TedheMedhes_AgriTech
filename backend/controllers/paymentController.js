@@ -1,17 +1,25 @@
-const Razorpay = require('razorpay');
 const crypto = require('crypto');
 
-// Initialize Razorpay
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+let razorpay = null;
+try {
+  const Razorpay = require('razorpay');
+  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+  } else {
+    console.warn('Razorpay keys missing; payment features running in simulated mode');
+  }
+} catch (e) {
+  console.warn('Razorpay module not available, running in simulated payment mode');
+}
 
 // @desc    Create a payment order
 // @route   POST /api/payments/create-order
 // @access  Private
 const createOrder = async (req, res) => {
-  const { amount, currency = 'INR', receipt } = req.body;
+  const { amount, currency = 'INR', receipt, postId } = req.body;
 
   try {
     const options = {
@@ -19,9 +27,15 @@ const createOrder = async (req, res) => {
       currency,
       receipt: receipt || `receipt_${Date.now()}`,
     };
-
-    const order = await razorpay.orders.create(options);
-    res.json(order);
+    if (razorpay) {
+      const order = await razorpay.orders.create(options);
+      // Return normalized response expected by frontend
+      res.json({ success: true, data: { orderId: order.id, amount: order.amount, currency: order.currency, postId } });
+    } else {
+      // Simulate an order for development when Razorpay is not configured
+      const fakeOrder = { id: `order_test_${Date.now()}`, amount: options.amount, currency };
+      res.json({ success: true, data: { orderId: fakeOrder.id, amount: fakeOrder.amount, currency: fakeOrder.currency, postId } });
+    }
   } catch (error) {
     console.error("Razorpay Error:", error);
     res.status(500).json({ message: 'Payment order creation failed', error: error.error ? error.error.description : error.message });
@@ -33,6 +47,11 @@ const createOrder = async (req, res) => {
 // @access  Private
 const verifyPayment = async (req, res) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  // If Razorpay secret not configured, accept verification in dev mode
+  if (!process.env.RAZORPAY_KEY_SECRET) {
+    return res.json({ success: true, message: 'Payment verified (simulated)' });
+  }
 
   const body = razorpay_order_id + '|' + razorpay_payment_id;
 

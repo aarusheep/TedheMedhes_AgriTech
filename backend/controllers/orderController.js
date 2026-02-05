@@ -31,7 +31,7 @@ const createOrder = async (req, res) => {
       status: 'pending'
     });
 
-    res.status(201).json({ message: 'Order created, waiting for approval', order });
+    res.status(201).json({ success: true, message: 'Order created, waiting for approval', data: order });
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -66,8 +66,38 @@ const getOrders = async (req, res) => {
 
     console.log(`Found ${sales.length} sales orders.`);
 
-    res.json({ purchases, sales });
+    res.json({ success: true, data: { purchases, sales } });
 
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get buy requests for farmer (incoming requests)
+// @route   GET /api/orders/farmer
+// @access  Private (Seller)
+const getFarmerRequests = async (req, res) => {
+  try {
+    const sellerId = req.user._id;
+
+    const requests = await Order.find({ seller: sellerId })
+      .populate({ path: 'listing', populate: { path: 'batch' } })
+      .populate('buyer', 'name');
+
+    const mapped = requests.map((r) => ({
+      _id: r._id,
+      status: r.status ? (typeof r.status === 'string' ? r.status.charAt(0).toUpperCase() + r.status.slice(1) : r.status) : 'Pending',
+      distributorName: r.buyer?.name || 'Unknown',
+      quantity: r.quantityRequest,
+      post: r.listing ? {
+        _id: r.listing._id,
+        productName: r.listing.batch?.cropName || 'Product',
+        postId: r.listing.batch?.batchId || ''
+      } : null,
+      createdAt: r.createdAt
+    }));
+
+    res.json({ success: true, data: mapped });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -95,7 +125,7 @@ const updateOrderStatus = async (req, res) => {
     order.status = status;
     await order.save();
 
-    res.json({ message: `Order ${status}`, order });
+    res.json({ success: true, message: `Order ${status}`, data: order });
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -151,9 +181,9 @@ const completeOrder = async (req, res) => {
     });
 
     res.json({
+      success: true,
       message: 'Order Completed & Ownership Transferred',
-      childListingId: childListing._id,
-      order
+      data: { childListingId: childListing._id, order }
     });
 
   } catch (error) {
@@ -161,4 +191,4 @@ const completeOrder = async (req, res) => {
   }
 };
 
-module.exports = { createOrder, getOrders, updateOrderStatus, completeOrder };
+module.exports = { createOrder, getOrders, updateOrderStatus, completeOrder, getFarmerRequests };

@@ -18,12 +18,15 @@ const createBatchAndListing = async (req, res) => {
     // In a real scenario, we would interact with Blockchain here to get a TxHash
     const batchId = `BATCH_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
+    const images = req.body.images || [];
+
     const newBatch = await Batch.create({
       batchId,
       cropName,
       quantityInitial: quantity,
       harvestDate,
       originLocation,
+      images,
       journey: [{
         handler: seller,
         role: 'farmer',
@@ -43,9 +46,14 @@ const createBatchAndListing = async (req, res) => {
     });
 
     res.status(201).json({
-      message: 'Batch listed successfully',
-      batch: newBatch,
-      listing: newListing
+      success: true,
+      data: {
+        message: 'Batch listed successfully',
+        postId: newBatch.batchId,
+        ipfsHashes: images,
+        batch: newBatch,
+        listing: newListing
+      }
     });
 
   } catch (error) {

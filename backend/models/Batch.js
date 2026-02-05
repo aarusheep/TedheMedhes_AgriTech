@@ -9,6 +9,7 @@ const batchSchema = new mongoose.Schema({
   quantityInitial: { type: Number, required: true }, // e.g. 10kg
   harvestDate: { type: Date, required: true },
   originLocation: { type: String, required: true },
+  images: [{ type: String }],
 
   // The Traceability Chain (Who held this and when)
   journey: [{

@@ -9,6 +9,91 @@ const generateToken = (id) => {
   });
 };
 
+// In-memory OTP store: { mobile: { otp, expiresAt, meta } }
+const otpStore = new Map();
+
+// Helper to create a random 6-digit OTP
+const createOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+// @desc    Send OTP to mobile (simulated)
+// @route   POST /api/auth/send-otp
+// @access  Public
+const sendOTP = async (req, res) => {
+  const { mobile } = req.body;
+
+  if (!mobile) return res.status(400).json({ message: 'Mobile number required' });
+
+  const otp = createOTP();
+  const expiresAt = Date.now() + 1000 * 60 * 5; // 5 minutes
+
+  otpStore.set(mobile, { otp, expiresAt });
+
+  // NOTE: In production you would integrate with SMS gateway here.
+  console.log(`Generated OTP for ${mobile}: ${otp}`);
+
+  res.json({ success: true, message: 'OTP sent' });
+};
+
+// @desc    Verify OTP and return/create user
+// @route   POST /api/auth/verify-otp
+// @access  Public
+const verifyOTP = async (req, res) => {
+  const { mobile, otp, isSignup, name, role } = req.body;
+
+  if (!mobile || !otp) return res.status(400).json({ message: 'Mobile and OTP required' });
+
+  const record = otpStore.get(mobile);
+  if (!record || record.expiresAt < Date.now() || record.otp !== otp) {
+    return res.status(400).json({ message: 'Invalid or expired OTP' });
+  }
+
+  try {
+    let user = await User.findOne({ mobile });
+
+    if (!user && isSignup) {
+      // Create a lightweight user with a random password
+      const randomPassword = Math.random().toString(36).slice(-8) + Date.now();
+      user = await User.create({
+        name: name || 'Unnamed',
+        mobile,
+        password: randomPassword,
+        role: (role && typeof role === 'string') ? role.toLowerCase() : 'farmer'
+      });
+    }
+
+    if (!user) {
+      // Auto-create a user for convenience (signup-less login)
+      const randomPassword = Math.random().toString(36).slice(-8) + Date.now();
+      user = await User.create({
+        name: name || 'Unnamed',
+        mobile,
+        password: randomPassword,
+        role: (role && typeof role === 'string') ? role.toLowerCase() : 'distributor'
+      });
+    }
+
+    // Clear OTP after successful verification
+    otpStore.delete(mobile);
+
+    return res.json({
+      success: true,
+      data: {
+        token: generateToken(user._id),
+        user: {
+          _id: user._id,
+          name: user.name,
+          mobile: user.mobile,
+          role: user.role,
+          walletAddress: user.walletAddress,
+        }
+      }
+    });
+  } catch (error) {
+    console.error('verifyOTP error', error);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
@@ -121,4 +206,4 @@ const getUserProfile = async (req, res) => {
 
 };
 
-module.exports = { registerUser, loginUser, getUserProfile };
+module.exports = { registerUser, loginUser, getUserProfile, sendOTP, verifyOTP };
