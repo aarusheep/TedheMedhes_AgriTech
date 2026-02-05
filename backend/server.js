@@ -2,15 +2,16 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
-const { initBlockchain } = require('./utils/blockchain');
+const { initializeBlockchain } = require('./config/blockchain');
 
 // Load environment variables
 dotenv.config();
 
 // Connect to database
 connectDB();
+
 // Initialize Blockchain Connection
-initBlockchain();
+initializeBlockchain();
 
 const app = express();
 
@@ -24,7 +25,22 @@ app.use('/api/payments', require('./routes/paymentRoutes'));
 app.use('/api/listings', require('./routes/listingRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/traceability', require('./routes/traceabilityRoutes'));
-// app.use('/api/blockchain', require('./routes/blockchainRoutes'));
+app.use('/api/blockchain', require('./routes/blockchainRoutes'));
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('💥 Unhandled error:', err);
+  res.status(500).json({ 
+    success: false, 
+    message: 'Server error', 
+    error: err.message 
+  });
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('💥 Unhandled Promise Rejection:', err);
+});
 
 const PORT = process.env.PORT || 5000;
 
